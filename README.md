@@ -13,7 +13,7 @@ Keywords— R, Data Analysis, ANOVA, SVM
 
 #### Data Resource
 
-All the dataset is come from Kaggle, "Dota2 Matches".  This contains 10 different kinds of dataset.
+All the dataset is come from Kaggle, "Dota2 Matches".  This contains 10 different kinds of dataset. 
 
 #### Data Analysis
 
