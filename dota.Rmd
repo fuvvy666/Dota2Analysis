@@ -1,0 +1,245 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(RMySQL)
+conn <- dbConnect(MySQL(),
+                  user = "bigdata",
+                  password = "mypassword",
+                  dbname = "bigdata",
+                  host = "bigdata.cdmore2v5bgl.us-east-1.rds.amazonaws.com")
+result = dbSendQuery(conn, "SELECT * FROM Matches")
+match = fetch(result, n = -1)
+```
+
+
+# loading the packages
+```{r}
+library(dplyr)
+library(tidyverse)
+```
+
+# tidying the data
+
+# subset the purchase_log
+```{r}
+match_number <- c(0:1000)
+purchase <- subset(purchase_log, match_id %in% match_number)
+match_subset <- subset(match, match_id %in% match_number)
+```
+
+# Add a new column called team_item for purchase dataset
+```{r}
+i <- 1
+while (i < nrow(purchase) +1) {
+  item <- purchase$item_id[i]
+  row <- subset(item_ids, item_id == item)
+  purchase$team_item[i] <- row$Team 
+  i <- i + 1
+}
+```
+
+# Change the player slot for purchase dataset
+```{r}
+purchase$player_slot[which(purchase$player_slot == 0)] <- 0
+purchase$player_slot[which(purchase$player_slot == 1)] <- 0
+purchase$player_slot[which(purchase$player_slot == 2)] <- 0
+purchase$player_slot[which(purchase$player_slot == 3)] <- 0
+purchase$player_slot[which(purchase$player_slot == 4)] <- 0
+purchase$player_slot[which(purchase$player_slot == 128)] <- 1
+purchase$player_slot[which(purchase$player_slot == 129)] <- 1
+purchase$player_slot[which(purchase$player_slot == 130)] <- 1
+purchase$player_slot[which(purchase$player_slot == 131)] <- 1
+purchase$player_slot[which(purchase$player_slot == 132)] <- 1
+```
+
+# summary the purchase dataset
+```{r}
+purchase_time <- purchase
+purchase_time$time[which(purchase_time$team_item == 0)] <- 0
+```
+
+```{r}
+purchase_summary <- purchase_time %>%
+  group_by(match_id, player_slot) %>%
+  summarize(team_item = sum(team_item),
+            average_time = mean(time))
+purchase_summary
+```
+
+# subset the match dataset
+```{r}
+match_result <- match_subset[,c("match_id", "radiant_win")]
+```
+
+# mapping the summary of purchase into the match dataset
+```{r}
+i = 1
+while (i < nrow(match_result)+1) {
+  id <- match_result$match_id[i]
+  rows <- subset(purchase_summary, match_id == id)
+  match_result$radiant_teamitem[i] <- rows$team_item[which(rows$player_slot == 0)]
+  match_result$dire_teamitem[i] <- rows$team_item[which(rows$player_slot == 1)]
+  match_result$radiant_itemtime[i] <- rows$average_time[which(rows$player_slot == 0)]
+  match_result$dire_itemtime[i] <- rows$average_time[which(rows$player_slot == 1)]
+  i <- i+1
+}
+```
+
+# calculating the diff
+```{r}
+match_result$item_diff <- match_result$radiant_teamitem - match_result$dire_teamitem
+match_result$time_diff <- match_result$radiant_itemtime - match_result$dire_itemtime
+```
+
+# Data Visualization
+
+# load the package
+```{r}
+library(ggplot2)
+```
+
+# item_diff vs. radiant_win
+```{r}
+ggplot(data = match_result, aes(x = radiant_win, y = item_diff)) +
+  geom_boxplot() + 
+  labs(title = "relationship between the difference of the team items and the final result",
+       x = "The outcome",
+       y = "The difference of the team items")
+```
+
+```{r}
+ggplot(data = match_result, aes(x = radiant_win, y = time_diff)) +
+  geom_boxplot() +
+  labs(title = "relationship between the difference of the purchase time and the final result",
+       x = "The outcome",
+       y = "The difference of the purchase time")
+```
+
+# ANOVA
+```{r}
+match_result$radiant_win[which(match_result$radiant_win == "True")] <- 1
+match_result$radiant_win[which(match_result$radiant_win == "False")] <- 0
+```
+
+
+```{r}
+match_result
+```
+
+```{r}
+model.lm <- lm(radiant_win ~ item_diff + time_diff,data = match_result)
+summary(model.lm)
+```
+
+```{r}
+model.aov <- aov(radiant_win ~ item_diff + time_diff,data = match_result)
+summary(model.aov)
+```
+
+
+```{r}
+model.aov <- aov(radiant_win ~ item_diff + time_diff, data = match_result)
+summary(model.aov)
+```
+
+```{r}
+model.radiant <- aov(radiant_win ~ radiant_teamitem + radiant_itemtime, data = match_result)
+summary(model.radiant)
+```
+
+
+# SVM and prediction
+
+# load package
+```{r}
+library(e1071)
+```
+
+# training set and testing set
+```{r}
+train <- sample(nrow(match_result),50)
+train_set <- match_result[-train,]
+test_set <- match_result[train,]
+test_result <- test_set$radiant_win
+```
+
+# build the model
+```{r}
+model.log <- svm(radiant_win ~ item_diff + time_diff, data = train_set, kernel = "radial", cost=3.376,gamma=0.885)
+```
+
+```{r}
+summary(model.log)
+```
+
+# prediction
+```{r}
+test <- test_set[,-2]
+```
+```{r}
+test <- test[,c("time_diff","item_diff")]
+```
+
+```{r}
+pred.log <- predict(model.log, test)
+```
+
+# Confusion Matrix
+```{r}
+table(pred.log,test_result)
+```
+
+# Accurate
+```{r}
+mean(pred.log == test_result)
+```
+
+
+
+# Chart view
+
+
+```{r}
+glimpse(chat)
+```
+
+```{r}
+set.seed(100)
+dota_chat <- sample_frac(chat, 1)
+```
+
+```{r}
+library(tm)
+library(wordcloud)
+library(SnowballC)
+```
+
+```{r}
+# First, we need to create a corpus.
+dota_corpus <- tm::VCorpus(VectorSource(dota_chat$key))
+# Next, we will convert the corpus to a plain text document.
+dota_corpus <- tm::tm_map(dota_corpus, PlainTextDocument)
+
+dota_corpus <- tm::tm_map(dota_corpus, removePunctuation)
+# Then, we will remove all punctuation and stopwords.
+# stopwords("english")
+dota_corpus <- tm::tm_map(dota_corpus, function(x) removeWords(x, stopwords('english')))
+
+
+dota_corpus <- tm_map(dota_corpus, stemDocument)
+# This uses Dr. Martin Porter's stemming algorithm and the C libstemmer library generated by Snowball.
+```
+
+```{r}
+dota_corpus
+```
+
+
+
+```{r}
+wordcloud(dota_corpus, max.words = 100, random.order = FALSE,min.freq = 5)
+```
+
